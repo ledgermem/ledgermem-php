@@ -85,18 +85,53 @@ final class Client
             }
             if ($response !== null) {
                 $status = $response->getStatusCode();
+                // 501 Not Implemented is a permanent failure.
+                if ($status === 501) {
+                    return false;
+                }
                 return $status === 429 || ($status >= 500 && $status < 600);
             }
             return false;
         };
     }
 
-    /** Exponential backoff with full jitter, capped at RETRY_MAX_DELAY_MS. */
-    private static function retryDelay(int $retries): int
+    /**
+     * Exponential backoff with full jitter, capped at RETRY_MAX_DELAY_MS.
+     * Honours a server-provided Retry-After header when present.
+     */
+    private static function retryDelay(int $retries, ?ResponseInterface $response = null): int
     {
+        if ($response !== null) {
+            $hint = self::parseRetryAfter($response);
+            if ($hint !== null) {
+                return min($hint, self::RETRY_MAX_DELAY_MS);
+            }
+        }
         $shifted = self::RETRY_BASE_DELAY_MS * (1 << min($retries, 20));
         $capped = min($shifted, self::RETRY_MAX_DELAY_MS);
         return random_int(0, $capped);
+    }
+
+    /** Returns Retry-After in milliseconds, or null when absent/invalid. */
+    private static function parseRetryAfter(ResponseInterface $response): ?int
+    {
+        $values = $response->getHeader('Retry-After');
+        if ($values === []) {
+            return null;
+        }
+        $raw = trim($values[0]);
+        if ($raw === '') {
+            return null;
+        }
+        if (ctype_digit($raw)) {
+            return ((int) $raw) * 1000;
+        }
+        $epoch = strtotime($raw);
+        if ($epoch === false) {
+            return null;
+        }
+        $deltaMs = ($epoch - time()) * 1000;
+        return max(0, $deltaMs);
     }
 
     public function search(string $query, ?int $limit = null, ?string $actorId = null): array
