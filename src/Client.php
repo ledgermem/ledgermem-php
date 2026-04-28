@@ -6,13 +6,21 @@ namespace LedgerMem;
 
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\RequestOptions;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 final class Client
 {
     private const DEFAULT_BASE_URL = 'https://api.proofly.dev';
     private const VERSION = '0.1.0';
+    private const DEFAULT_MAX_RETRIES = 3;
+    private const RETRY_BASE_DELAY_MS = 200;
+    private const RETRY_MAX_DELAY_MS = 5_000;
 
     private readonly ClientInterface $http;
     private readonly array $defaultHeaders;
@@ -22,6 +30,7 @@ final class Client
         string $workspaceId,
         ?string $baseUrl = null,
         ?ClientInterface $httpClient = null,
+        int $maxRetries = self::DEFAULT_MAX_RETRIES,
     ) {
         if ($apiKey === '') {
             throw new \InvalidArgumentException('apiKey is required');
@@ -41,10 +50,53 @@ final class Client
             'Accept' => 'application/json',
         ];
 
-        $this->http = $httpClient ?? new GuzzleClient([
-            'base_uri' => rtrim($url, '/') . '/',
-            'timeout' => 30.0,
-        ]);
+        if ($httpClient !== null) {
+            $this->http = $httpClient;
+        } else {
+            $stack = HandlerStack::create();
+            $stack->push(Middleware::retry(
+                self::retryDecider(max(0, $maxRetries)),
+                self::retryDelay(...),
+            ));
+            $this->http = new GuzzleClient([
+                'base_uri' => rtrim($url, '/') . '/',
+                'timeout' => 30.0,
+                'handler' => $stack,
+            ]);
+        }
+    }
+
+    /**
+     * @return callable(int, RequestInterface, ?ResponseInterface, ?\Throwable): bool
+     */
+    private static function retryDecider(int $maxRetries): callable
+    {
+        return static function (
+            int $retries,
+            RequestInterface $request,
+            ?ResponseInterface $response = null,
+            ?\Throwable $exception = null,
+        ) use ($maxRetries): bool {
+            if ($retries >= $maxRetries) {
+                return false;
+            }
+            if ($exception instanceof ConnectException) {
+                return true;
+            }
+            if ($response !== null) {
+                $status = $response->getStatusCode();
+                return $status === 429 || ($status >= 500 && $status < 600);
+            }
+            return false;
+        };
+    }
+
+    /** Exponential backoff with full jitter, capped at RETRY_MAX_DELAY_MS. */
+    private static function retryDelay(int $retries): int
+    {
+        $shifted = self::RETRY_BASE_DELAY_MS * (1 << min($retries, 20));
+        $capped = min($shifted, self::RETRY_MAX_DELAY_MS);
+        return random_int(0, $capped);
     }
 
     public function search(string $query, ?int $limit = null, ?string $actorId = null): array
