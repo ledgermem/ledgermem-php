@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LedgerMem;
+namespace Mnemo;
 
 use RuntimeException;
 
-final class LedgerMemException extends RuntimeException
+final class MnemoException extends RuntimeException
 {
     public function __construct(
         public readonly int $statusCode,

@@ -5,7 +5,7 @@
          colors="true"
          cacheDirectory=".phpunit.cache">
   <testsuites>
-    <testsuite name="LedgerMem">
+    <testsuite name="Mnemo">
       <directory>tests</directory>
     </testsuite>
   </testsuites>

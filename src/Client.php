@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LedgerMem;
+namespace Mnemo;
 
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
@@ -16,7 +16,7 @@ use Psr\Http\Message\ResponseInterface;
 
 final class Client
 {
-    private const DEFAULT_BASE_URL = 'https://api.proofly.dev';
+    private const DEFAULT_BASE_URL = 'https://api.getmnemo.xyz';
     private const VERSION = '0.1.0';
     private const DEFAULT_MAX_RETRIES = 3;
     private const RETRY_BASE_DELAY_MS = 200;
@@ -40,13 +40,13 @@ final class Client
         }
 
         $url = $baseUrl
-            ?? (getenv('LEDGERMEM_API_URL') ?: null)
+            ?? (getenv('GETMNEMO_API_URL') ?: null)
             ?? self::DEFAULT_BASE_URL;
 
         $this->defaultHeaders = [
             'Authorization' => 'Bearer ' . $apiKey,
             'x-workspace-id' => $workspaceId,
-            'User-Agent' => 'ledgermem-php/' . self::VERSION,
+            'User-Agent' => 'getmnemo-php/' . self::VERSION,
             'Accept' => 'application/json',
         ];
 
@@ -203,14 +203,14 @@ final class Client
         try {
             $response = $this->http->request($method, $path, $options);
         } catch (GuzzleException $e) {
-            throw new LedgerMemException(0, 'Transport error: ' . $e->getMessage());
+            throw new MnemoException(0, 'Transport error: ' . $e->getMessage());
         }
 
         $status = $response->getStatusCode();
         $payload = (string) $response->getBody();
 
         if ($status >= 400) {
-            throw new LedgerMemException($status, "LedgerMem API error {$status}: {$payload}");
+            throw new MnemoException($status, "Mnemo API error {$status}: {$payload}");
         }
 
         if (!$expectJson || $payload === '') {
@@ -219,7 +219,7 @@ final class Client
 
         $decoded = json_decode($payload, true);
         if (!is_array($decoded)) {
-            throw new LedgerMemException($status, 'Invalid JSON response: ' . $payload);
+            throw new MnemoException($status, 'Invalid JSON response: ' . $payload);
         }
         return $decoded;
     }

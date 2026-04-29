@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LedgerMem\Tests;
+namespace Mnemo\Tests;
 
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use LedgerMem\Client;
-use LedgerMem\LedgerMemException;
+use Mnemo\Client;
+use Mnemo\MnemoException;
 use PHPUnit\Framework\TestCase;
 
 final class ClientTest extends TestCase
@@ -73,7 +73,7 @@ final class ClientTest extends TestCase
     {
         $client = $this->makeClient(new Response(404, [], '{"error":"not found"}'));
 
-        $this->expectException(LedgerMemException::class);
+        $this->expectException(MnemoException::class);
         $client->delete('missing');
     }
 }
