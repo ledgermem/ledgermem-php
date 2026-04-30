@@ -1,5 +1,5 @@
 {
-  "name": "getmnemo/getmnemo",
+  "name": "mnemo/getmnemo",
   "description": "Official PHP client for the Mnemo memory API.",
   "type": "library",
   "license": "MIT",
